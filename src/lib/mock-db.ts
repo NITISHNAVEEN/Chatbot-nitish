@@ -69,10 +69,12 @@ let chatbots: Chatbot[] = [
         followUpOptions: ['Internet Issues', 'Password Reset', 'Software Install']
       }
     ],
-    unansweredQuestions: [
-      { id: 'uq-1', text: 'How do I request a new laptop?', timestamp: new Date().toISOString(), status: 'pending' },
-      { id: 'uq-2', text: 'Where is the office located?', timestamp: new Date().toISOString(), status: 'pending' }
-    ],
+    unansweredQuestions: Array.from({ length: 15 }).map((_, i) => ({
+      id: `uq-demo-${i}`,
+      text: i === 0 ? 'How do I request a new laptop?' : i === 1 ? 'Where is the office located?' : `Random query ${i + 1}?`,
+      timestamp: new Date(Date.now() - i * 3600000).toISOString(),
+      status: 'pending'
+    })),
     createdAt: new Date().toISOString()
   }
 ];
@@ -108,6 +110,15 @@ export const resolveUnansweredQuestion = (botId: string, questionId: string) => 
   if (bot) {
     updateChatbot(botId, {
       unansweredQuestions: bot.unansweredQuestions.filter(q => q.id !== questionId)
+    });
+  }
+};
+
+export const clearUnansweredQuestions = (botId: string) => {
+  const bot = getChatbotById(botId);
+  if (bot) {
+    updateChatbot(botId, {
+      unansweredQuestions: []
     });
   }
 };
