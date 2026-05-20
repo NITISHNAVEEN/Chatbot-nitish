@@ -12,6 +12,13 @@ export interface KnowledgeSource {
   createdAt: string;
 }
 
+export interface UnansweredQuestion {
+  id: string;
+  text: string;
+  timestamp: string;
+  status: 'pending' | 'resolved';
+}
+
 export interface Chatbot {
   id: string;
   name: string;
@@ -23,6 +30,7 @@ export interface Chatbot {
   customRules?: string;
   knowledgeSources: KnowledgeSource[];
   fixedMappings: FixedMapping[];
+  unansweredQuestions: UnansweredQuestion[];
   createdAt: string;
 }
 
@@ -61,6 +69,10 @@ let chatbots: Chatbot[] = [
         followUpOptions: ['Internet Issues', 'Password Reset', 'Software Install']
       }
     ],
+    unansweredQuestions: [
+      { id: 'uq-1', text: 'How do I request a new laptop?', timestamp: new Date().toISOString(), status: 'pending' },
+      { id: 'uq-2', text: 'Where is the office located?', timestamp: new Date().toISOString(), status: 'pending' }
+    ],
     createdAt: new Date().toISOString()
   }
 ];
@@ -74,4 +86,28 @@ export const addChatbot = (bot: Chatbot) => {
 export const updateChatbot = (id: string, updates: Partial<Chatbot>) => {
   chatbots = chatbots.map(b => b.id === id ? { ...b, ...updates } : b);
   return chatbots.find(b => b.id === id);
+};
+
+export const recordUnansweredQuestion = (botId: string, text: string) => {
+  const bot = getChatbotById(botId);
+  if (bot) {
+    const newQuestion: UnansweredQuestion = {
+      id: Math.random().toString(36).substring(7),
+      text,
+      timestamp: new Date().toISOString(),
+      status: 'pending'
+    };
+    updateChatbot(botId, {
+      unansweredQuestions: [newQuestion, ...bot.unansweredQuestions]
+    });
+  }
+};
+
+export const resolveUnansweredQuestion = (botId: string, questionId: string) => {
+  const bot = getChatbotById(botId);
+  if (bot) {
+    updateChatbot(botId, {
+      unansweredQuestions: bot.unansweredQuestions.filter(q => q.id !== questionId)
+    });
+  }
 };

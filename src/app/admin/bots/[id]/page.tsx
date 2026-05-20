@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, ArrowRight, FileText, X, Settings, Power, Edit3, FileUp, Loader2 } from 'lucide-react';
+import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, ArrowRight, FileText, X, Settings, Power, Edit3, FileUp, Loader2, Inbox } from 'lucide-react';
 import { BotPreview } from '@/components/admin/bot-preview';
 import { getChatbotById, updateChatbot, type Chatbot, type FixedMapping, type KnowledgeSource } from '@/lib/mock-db';
 import { useToast } from '@/hooks/use-toast';
@@ -182,6 +182,8 @@ export default function BotConfigPage() {
 
   if (!bot) return null;
 
+  const pendingQuestionsCount = bot.unansweredQuestions.filter(q => q.status === 'pending').length;
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">
       <header className="border-b border-border bg-card/30 h-16 shrink-0 flex items-center justify-between px-6 z-50">
@@ -201,6 +203,17 @@ export default function BotConfigPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <Button asChild variant="outline" size="sm" className="border-accent/40 hover:bg-accent/10 relative">
+            <Link href={`/admin/bots/${id}/review`}>
+              <Inbox className="h-4 w-4 mr-2" /> 
+              Review Inbox
+              {pendingQuestionsCount > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white shadow-lg">
+                  {pendingQuestionsCount}
+                </span>
+              )}
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" onClick={copyLink} className="border-primary/20">
             {copied ? <CheckCircle className="h-4 w-4 mr-2 text-green-500" /> : <Copy className="h-4 w-4 mr-2" />}
             {copied ? 'Copied' : 'Share Link'}
@@ -438,6 +451,7 @@ export default function BotConfigPage() {
             {wizardStep === 2 && (
               <div className="space-y-4">
                 <Label>Bot Response</Label>
+                <span className="text-[10px] text-muted-foreground block -mt-2">Provide the exact instructions the bot should give.</span>
                 <Textarea 
                   placeholder="Provide instructions..." 
                   value={newPair.botResponse}
@@ -450,6 +464,7 @@ export default function BotConfigPage() {
             {wizardStep === 3 && (
               <div className="space-y-4">
                 <Label>Suggested Branches</Label>
+                <span className="text-[10px] text-muted-foreground block -mt-2">Add options that will appear as buttons after this response.</span>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {newPair.followUpOptions?.map((opt, i) => (
                     <Badge key={i} variant="secondary" className="gap-1">

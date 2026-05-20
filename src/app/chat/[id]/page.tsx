@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Bot, Loader2, ShieldCheck, Info, PowerOff } from 'lucide-react';
 import { ragBotResponse } from '@/ai/flows/rag-bot-response-flow';
-import { getChatbotById, type Chatbot } from '@/lib/mock-db';
+import { getChatbotById, recordUnansweredQuestion, type Chatbot } from '@/lib/mock-db';
 
 export default function PublicChatPage() {
   const { id } = useParams();
@@ -57,6 +57,10 @@ export default function PublicChatPage() {
             followUpOptions: m.followUpOptions
           }))
         });
+
+        if (result.responseSource === 'fallback') {
+          recordUnansweredQuestion(bot.id, userMessage);
+        }
 
         setMessages(prev => [...prev, { 
           role: 'bot', 
