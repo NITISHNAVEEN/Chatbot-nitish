@@ -8,6 +8,7 @@ export interface Chatbot {
   id: string;
   name: string;
   topic: string;
+  status: 'online' | 'offline';
   welcomeMessage?: string;
   initialOptions: string[]; // New: entry point buttons
   rulesType: 'master' | 'custom';
@@ -23,6 +24,7 @@ let chatbots: Chatbot[] = [
     id: 'demo-bot-1',
     name: 'Tech Support Assistant',
     topic: 'General IT Support',
+    status: 'online',
     welcomeMessage: 'Welcome to Tech Support! Please select an option below to get started.',
     initialOptions: ['Internet Issues', 'Password Reset', 'Software Install'],
     rulesType: 'master',

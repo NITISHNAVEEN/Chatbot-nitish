@@ -9,10 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, Info, ArrowRight, MessageCircle, FileText, X } from 'lucide-react';
+import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, ArrowRight, FileText, X, Settings, Power } from 'lucide-react';
 import { BotPreview } from '@/components/admin/bot-preview';
 import { getChatbotById, updateChatbot, type Chatbot, type FixedMapping } from '@/lib/mock-db';
 import { useToast } from '@/hooks/use-toast';
@@ -50,8 +49,8 @@ export default function BotConfigPage() {
     if (bot) {
       updateChatbot(bot.id, bot);
       toast({
-        title: "Tree Synchronized",
-        description: "Decision engine updated with latest nodes and branches.",
+        title: "Configuration Saved",
+        description: "Your bot settings and decision tree have been synchronized.",
       });
     }
   };
@@ -133,8 +132,13 @@ export default function BotConfigPage() {
           </Button>
           <div className="h-8 w-px bg-border" />
           <div>
-            <h1 className="text-lg font-headline font-bold">{bot.name}</h1>
-            <p className="text-xs text-muted-foreground font-code uppercase tracking-tighter">Tree Engine Mode</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-headline font-bold">{bot.name}</h1>
+              <Badge variant={bot.status === 'online' ? 'default' : 'secondary'} className={bot.status === 'online' ? 'bg-green-500/20 text-green-500 border-green-500/30' : ''}>
+                {bot.status === 'online' ? 'ONLINE' : 'OFFLINE'}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground font-code uppercase tracking-tighter">{bot.topic}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -143,7 +147,7 @@ export default function BotConfigPage() {
             {copied ? 'Copied' : 'Share Link'}
           </Button>
           <Button size="sm" onClick={handleSave} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-            <Save className="h-4 w-4 mr-2" /> Save Decision Tree
+            <Save className="h-4 w-4 mr-2" /> Save Changes
           </Button>
         </div>
       </header>
@@ -152,17 +156,18 @@ export default function BotConfigPage() {
         <div className="w-1/2 h-full border-r border-border overflow-y-auto bg-card/20 scrollbar-none">
           <div className="p-8 space-y-8">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="bg-secondary/30 grid w-full grid-cols-3 p-1">
-                <TabsTrigger value="general">Tree Root</TabsTrigger>
-                <TabsTrigger value="training">Decision Nodes</TabsTrigger>
+              <TabsList className="bg-secondary/30 grid w-full grid-cols-4 p-1">
+                <TabsTrigger value="general">Root</TabsTrigger>
+                <TabsTrigger value="training">Nodes</TabsTrigger>
                 <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+                <TabsTrigger value="settings" className="gap-2"><Settings className="h-3.5 w-3.5" /> Settings</TabsTrigger>
               </TabsList>
 
               <TabsContent value="general" className="mt-6 space-y-6">
                 <Card className="bg-background border-border">
                   <CardHeader>
                     <CardTitle className="text-lg font-headline">Entry Point</CardTitle>
-                    <CardDescription>What the user sees first</CardDescription>
+                    <CardDescription>First contact configuration</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -206,27 +211,13 @@ export default function BotConfigPage() {
                     </div>
                   </CardContent>
                 </Card>
-
-                <div className="space-y-4">
-                  <Label className="text-base font-headline">Identity & Governance</Label>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Bot Name</Label>
-                      <Input value={bot.name} onChange={e => setBot({...bot, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Assigned Topic</Label>
-                      <Input value={bot.topic} onChange={e => setBot({...bot, topic: e.target.value})} />
-                    </div>
-                  </div>
-                </div>
               </TabsContent>
 
               <TabsContent value="training" className="mt-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-headline font-bold">Flow Logic Designer</h3>
-                    <p className="text-sm text-muted-foreground">Define triggers and their resulting branches.</p>
+                    <p className="text-sm text-muted-foreground">Define triggers and branches.</p>
                   </div>
                   <Button onClick={startWizard} variant="outline" size="sm" className="border-accent text-accent hover:bg-accent/10">
                     <Plus className="h-4 w-4 mr-2" /> Add Node
@@ -265,11 +256,6 @@ export default function BotConfigPage() {
                       )}
                     </div>
                   ))}
-                  {bot.fixedMappings.length === 0 && (
-                    <div className="text-center py-12 border border-dashed rounded-xl text-muted-foreground bg-secondary/10">
-                      No flow nodes defined. Start building your tree.
-                    </div>
-                  )}
                 </div>
               </TabsContent>
 
@@ -280,17 +266,51 @@ export default function BotConfigPage() {
                       <FileText className="h-5 w-5 text-primary" />
                       Fallback Knowledge Base
                     </CardTitle>
-                    <CardDescription>Resources used if no tree node is matched</CardDescription>
+                    <CardDescription>OCR Extract / Source Text</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>OCR Extract / Source Text</Label>
-                      <Textarea 
-                        placeholder="Paste text extracts..."
-                        className="min-h-[300px] bg-background border-primary/20"
-                        value={bot.knowledgeBaseContent}
-                        onChange={e => setBot({...bot, knowledgeBaseContent: e.target.value})}
+                  <CardContent>
+                    <Textarea 
+                      placeholder="Paste text extracts..."
+                      className="min-h-[300px] bg-background border-primary/20"
+                      value={bot.knowledgeBaseContent}
+                      onChange={e => setBot({...bot, knowledgeBaseContent: e.target.value})}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="settings" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Power className="h-5 w-5 text-primary" />
+                      Availability Settings
+                    </CardTitle>
+                    <CardDescription>Control if this bot is live to the public</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-secondary/20 rounded-lg border border-border">
+                      <div className="space-y-0.5">
+                        <Label className="text-base">Bot Status</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {bot.status === 'online' ? 'Publicly accessible and active.' : 'Hidden from public with maintenance message.'}
+                        </p>
+                      </div>
+                      <Switch 
+                        checked={bot.status === 'online'} 
+                        onCheckedChange={(checked) => setBot({...bot, status: checked ? 'online' : 'offline'})}
                       />
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Assistant Identity</Label>
+                        <Input value={bot.name} onChange={e => setBot({...bot, name: e.target.value})} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Topic Mapping</Label>
+                        <Input value={bot.topic} onChange={e => setBot({...bot, topic: e.target.value})} />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -299,7 +319,6 @@ export default function BotConfigPage() {
           </div>
         </div>
 
-        {/* Right Preview Panel */}
         <div className="w-1/2 h-full bg-background p-8 flex flex-col">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-headline uppercase tracking-widest text-muted-foreground">Tree Preview</h2>
@@ -311,84 +330,64 @@ export default function BotConfigPage() {
         </div>
       </main>
 
-      {/* Decision Node Wizard */}
       <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Flow Node Designer</DialogTitle>
             <DialogDescription>
-              Step {wizardStep} of 3: {wizardStep === 1 ? 'Trigger' : wizardStep === 2 ? 'Response' : 'Follow-up Branches'}
+              Step {wizardStep} of 3
             </DialogDescription>
             <Progress value={(wizardStep / 3) * 100} className="h-1 mt-2" />
           </DialogHeader>
-          
           <div className="py-4 space-y-4">
             {wizardStep === 1 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
-                <div className="p-3 bg-primary/5 rounded-lg border border-primary/10 text-xs">
-                  What button label or user phrase triggers this path?
-                </div>
-                <div className="space-y-2">
-                  <Label>Trigger Phrase / Button Label</Label>
-                  <Input 
-                    placeholder="e.g. Technical Support" 
-                    value={newPair.userPrompt}
-                    onChange={(e) => setNewPair({...newPair, userPrompt: e.target.value})}
-                    autoFocus
-                  />
-                </div>
+              <div className="space-y-4">
+                <Label>Trigger Phrase / Button Label</Label>
+                <Input 
+                  placeholder="e.g. Technical Support" 
+                  value={newPair.userPrompt}
+                  onChange={(e) => setNewPair({...newPair, userPrompt: e.target.value})}
+                  autoFocus
+                />
               </div>
             )}
-            
             {wizardStep === 2 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
-                <div className="p-3 bg-accent/5 rounded-lg border border-accent/10 text-xs">
-                  What message does the bot send when triggered?
-                </div>
-                <div className="space-y-2">
-                  <Label>Bot Response</Label>
-                  <Textarea 
-                    placeholder="Provide the answer or instructions..." 
-                    value={newPair.botResponse}
-                    onChange={(e) => setNewPair({...newPair, botResponse: e.target.value})}
-                    className="min-h-[100px]"
-                    autoFocus
-                  />
-                </div>
+              <div className="space-y-4">
+                <Label>Bot Response</Label>
+                <Textarea 
+                  placeholder="Provide instructions..." 
+                  value={newPair.botResponse}
+                  onChange={(e) => setNewPair({...newPair, botResponse: e.target.value})}
+                  className="min-h-[100px]"
+                  autoFocus
+                />
               </div>
             )}
-
             {wizardStep === 3 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
-                <div className="p-3 bg-secondary/30 rounded-lg border border-border text-xs">
-                  Add suggested next steps for the user (optional).
+              <div className="space-y-4">
+                <Label>Suggested Branches</Label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {newPair.followUpOptions?.map((opt, i) => (
+                    <Badge key={i} variant="secondary" className="gap-1">
+                      {opt}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFollowUp(i)} />
+                    </Badge>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <Label>Suggested Branches (Quick Replies)</Label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {newPair.followUpOptions?.map((opt, i) => (
-                      <Badge key={i} variant="secondary" className="gap-1">
-                        {opt}
-                        <X className="h-3 w-3 cursor-pointer" onClick={() => removeFollowUp(i)} />
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="Add follow-up option..." 
-                      value={newPair.currentFollowUp}
-                      onChange={(e) => setNewPair({...newPair, currentFollowUp: e.target.value})}
-                      onKeyDown={(e) => e.key === 'Enter' && addFollowUp()}
-                    />
-                    <Button variant="outline" size="icon" onClick={addFollowUp}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Add follow-up option..." 
+                    value={newPair.currentFollowUp}
+                    onChange={(e) => setNewPair({...newPair, currentFollowUp: e.target.value})}
+                    onKeyDown={(e) => e.key === 'Enter' && addFollowUp()}
+                  />
+                  <Button variant="outline" size="icon" onClick={addFollowUp}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             )}
           </div>
-          
           <DialogFooter className="gap-2">
             {wizardStep < 3 ? (
               <Button 
@@ -399,15 +398,7 @@ export default function BotConfigPage() {
                 Next <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             ) : (
-              <>
-                <Button variant="ghost" onClick={() => setWizardStep(2)}>Back</Button>
-                <Button 
-                  onClick={finishWizard} 
-                  className="bg-primary hover:bg-primary/90 flex-1"
-                >
-                  Create Node
-                </Button>
-              </>
+              <Button onClick={finishWizard} className="w-full bg-primary">Create Node</Button>
             )}
           </DialogFooter>
         </DialogContent>
