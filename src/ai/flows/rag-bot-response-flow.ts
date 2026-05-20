@@ -1,97 +1,90 @@
 'use server';
 /**
- * @fileOverview An intelligent RAG (Retrieval Augmented Generation) bot response agent.
- *
- * - ragBotResponse - A function that intelligently answers user questions by first checking for fixed responses
- *                    and then retrieving and synthesizing information from a knowledge base if no fixed response is found.
- * - RagBotResponseInput - The input type for the ragBotResponse function.
- * - RagBotResponseOutput - The return type for the ragBotResponse function.
+ * @fileOverview A deterministic, rules-based bot response engine.
+ * This file replaces the previous AI-driven RAG flow with a strictly logic-based matcher.
+ * It follows the user requirement to remove all AI/API dependencies for answering.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+export type RagBotResponseInput = {
+  botId: string;
+  userMessage: string;
+  fixedResponses?: {
+    userPrompt: string;
+    botResponse?: string;
+  }[];
+  knowledgeBaseContent?: string;
+};
 
-const RagBotResponseInputSchema = z.object({
-  userId: z.string().describe('The ID of the user interacting with the bot.').optional(),
-  botId: z.string().describe('The ID of the chatbot instance.'),
-  userMessage: z.string().describe('The message or question from the user.'),
-  fixedResponses: z.array(z.object({
-    userPrompt: z.string().describe('A specific user prompt that triggers this fixed response.'),
-    botResponse: z.string().describe('The pre-defined response from the bot for the specific user prompt.').optional(),
-    botFlow: z.string().describe('The Genkit flow to call for this fixed response, if botResponse is not provided.').optional(),
-  })).describe('An array of pre-defined user prompts and their corresponding bot responses or flow triggers.').optional(),
-  knowledgeBaseContent: z.string().describe('Aggregated relevant content from the knowledge base (PDFs, web links, custom text) related to the user\'s query.').optional(),
-});
-export type RagBotResponseInput = z.infer<typeof RagBotResponseInputSchema>;
+export type RagBotResponseOutput = {
+  response: string;
+  responseSource: 'fixed' | 'knowledge_base' | 'fallback';
+};
 
-const RagBotResponseOutputSchema = z.object({
-  response: z.string().describe('The bot\'s generated response.'),
-  responseSource: z.enum(['fixed', 'retrieved', 'flow_triggered']).describe('Indicates whether the response came from a fixed mapping, retrieved RAG, or triggered a flow.'),
-});
-export type RagBotResponseOutput = z.infer<typeof RagBotResponseOutputSchema>;
+/**
+ * Deterministically finds the best response based on fixed mappings and knowledge base text.
+ */
+export async function ragBotResponse(input: RagBotResponseInput): Promise<RagBotResponseOutput> {
+  const userMsg = input.userMessage.toLowerCase().trim();
 
-// Prompt for the RAG part when no fixed response is found
-const ragKnowledgeBasePrompt = ai.definePrompt({
-  name: 'ragKnowledgeBasePrompt',
-  input: { schema: z.object({
-    userMessage: z.string(),
-    knowledgeBaseContent: z.string().optional(),
-  })},
-  output: { schema: z.string() }, // Output is just the response string
-  prompt: `You are a helpful and user-friendly chatbot. Your goal is to answer the user's question using the provided knowledge base content.
+  // 1. Check for exact matches in fixed training pairs (Custom Training Modality)
+  if (input.fixedResponses) {
+    const exactMatch = input.fixedResponses.find(
+      (f) => f.userPrompt.toLowerCase().trim() === userMsg
+    );
+    if (exactMatch && exactMatch.botResponse) {
+      return {
+        response: exactMatch.botResponse,
+        responseSource: 'fixed',
+      };
+    }
 
-User Question: {{{userMessage}}}
+    // 2. Check for partial matches in fixed training pairs
+    const partialMatch = input.fixedResponses.find(
+      (f) => userMsg.includes(f.userPrompt.toLowerCase().trim()) && f.userPrompt.length > 3
+    );
+    if (partialMatch && partialMatch.botResponse) {
+      return {
+        response: partialMatch.botResponse,
+        responseSource: 'fixed',
+      };
+    }
+  }
 
-Knowledge Base Content:
-{{{knowledgeBaseContent}}}
+  // 3. Search Knowledge Base Content (Deterministic Substring Search)
+  if (input.knowledgeBaseContent) {
+    // Split into sentences for more precise matching
+    const sentences = input.knowledgeBaseContent.split(/[.!\n\?]/).map(s => s.trim()).filter(s => s.length > 5);
+    const keywords = userMsg.split(/\s+/).filter(w => w.length > 3);
 
-If the knowledge base content is available and relevant, synthesize a comprehensive answer based on it. If the knowledge base content is not sufficient to answer the question, or is not provided, please state that you cannot find the information and suggest rephrasing the question or asking about a different topic. Do not invent information.`,
-});
+    let bestSentence = '';
+    let maxMatches = 0;
 
-const ragBotResponseFlow = ai.defineFlow(
-  {
-    name: 'ragBotResponseFlow',
-    inputSchema: RagBotResponseInputSchema,
-    outputSchema: RagBotResponseOutputSchema,
-  },
-  async (input) => {
-    // 1. Check for fixed responses first
-    if (input.fixedResponses && input.fixedResponses.length > 0) {
-      const lowerCaseUserMessage = input.userMessage.toLowerCase();
-      for (const fixed of input.fixedResponses) {
-        // For simplicity, we are doing an exact (case-insensitive) match for now.
-        // More advanced matching (e.g., embeddings) could be implemented here if needed.
-        if (fixed.userPrompt.toLowerCase() === lowerCaseUserMessage) {
-          if (fixed.botResponse) {
-            return {
-              response: fixed.botResponse,
-              responseSource: 'fixed',
-            };
-          } else if (fixed.botFlow) {
-            // In a real scenario, you would dynamically call the specified flow here.
-            // For now, we'll simulate a response indicating a flow trigger.
-            return {
-              response: `Triggering flow: ${fixed.botFlow}. (Actual flow execution logic would go here.)`,
-              responseSource: 'flow_triggered',
-            };
-          }
+    for (const sentence of sentences) {
+      const lowerSentence = sentence.toLowerCase();
+      let matches = 0;
+      for (const keyword of keywords) {
+        if (lowerSentence.includes(keyword)) {
+          matches++;
         }
+      }
+
+      if (matches > maxMatches) {
+        maxMatches = matches;
+        bestSentence = sentence;
       }
     }
 
-    // 2. If no fixed response, retrieve and synthesize from knowledge base (RAG)
-    const { output: ragResponse } = await ragKnowledgeBasePrompt({
-      userMessage: input.userMessage,
-      knowledgeBaseContent: input.knowledgeBaseContent,
-    });
-
-    return {
-      response: ragResponse || 'I am sorry, but I could not find an answer to your question based on the available information. Please try rephrasing your question.',
-      responseSource: 'retrieved',
-    };
+    if (maxMatches > 0) {
+      return {
+        response: bestSentence + ".",
+        responseSource: 'knowledge_base',
+      };
+    }
   }
-);
 
-export async function ragBotResponse(input: RagBotResponseInput): Promise<RagBotResponseOutput> {
-  return ragBotResponseFlow(input);
+  // 4. Fallback if no rules or resources match
+  return {
+    response: "I'm sorry, I couldn't find a specific rule or resource to answer that question. Please try rephrasing or contact support.",
+    responseSource: 'fallback',
+  };
 }
