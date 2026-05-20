@@ -1,7 +1,15 @@
 export interface FixedMapping {
   userPrompt: string;
   botResponse: string;
-  followUpOptions?: string[]; // New: suggested buttons after this response
+  followUpOptions?: string[];
+}
+
+export interface KnowledgeSource {
+  id: string;
+  name: string;
+  type: 'pdf' | 'text' | 'web';
+  content: string;
+  createdAt: string;
 }
 
 export interface Chatbot {
@@ -10,15 +18,14 @@ export interface Chatbot {
   topic: string;
   status: 'online' | 'offline';
   welcomeMessage?: string;
-  initialOptions: string[]; // New: entry point buttons
+  initialOptions: string[];
   rulesType: 'master' | 'custom';
   customRules?: string;
-  knowledgeBaseContent?: string;
+  knowledgeSources: KnowledgeSource[];
   fixedMappings: FixedMapping[];
   createdAt: string;
 }
 
-// In-memory mock storage for demo purposes
 let chatbots: Chatbot[] = [
   {
     id: 'demo-bot-1',
@@ -28,7 +35,15 @@ let chatbots: Chatbot[] = [
     welcomeMessage: 'Welcome to Tech Support! Please select an option below to get started.',
     initialOptions: ['Internet Issues', 'Password Reset', 'Software Install'],
     rulesType: 'master',
-    knowledgeBaseContent: 'Our support hours are 9 AM to 5 PM EST. We provide help with software installation, hardware troubleshooting, and network configuration.',
+    knowledgeSources: [
+      {
+        id: 'ks-1',
+        name: 'Core Support Policy',
+        type: 'text',
+        content: 'Our support hours are 9 AM to 5 PM EST. We provide help with software installation, hardware troubleshooting, and network configuration.',
+        createdAt: new Date().toISOString()
+      }
+    ],
     fixedMappings: [
       { 
         userPrompt: 'Internet Issues', 

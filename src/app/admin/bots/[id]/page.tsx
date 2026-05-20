@@ -11,12 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, ArrowRight, FileText, X, Settings, Power } from 'lucide-react';
+import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, ArrowRight, FileText, X, Settings, Power, Edit3, FileUp, Loader2 } from 'lucide-react';
 import { BotPreview } from '@/components/admin/bot-preview';
-import { getChatbotById, updateChatbot, type Chatbot, type FixedMapping } from '@/lib/mock-db';
+import { getChatbotById, updateChatbot, type Chatbot, type FixedMapping, type KnowledgeSource } from '@/lib/mock-db';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { simulateOcrExtraction } from '@/ai/flows/ocr-extraction-flow';
 
 export default function BotConfigPage() {
   const { id } = useParams();
@@ -26,15 +27,19 @@ export default function BotConfigPage() {
   const [activeTab, setActiveTab] = useState('training');
   const [copied, setCopied] = useState(false);
   
-  // Wizard state
+  // Wizard/Edit state
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [newPair, setNewPair] = useState<FixedMapping & { currentFollowUp: string }>({ 
     userPrompt: '', 
     botResponse: '', 
     followUpOptions: [],
     currentFollowUp: ''
   });
+
+  // Knowledge state
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const found = getChatbotById(id as string);
@@ -55,8 +60,18 @@ export default function BotConfigPage() {
     }
   };
 
-  const startWizard = () => {
-    setNewPair({ userPrompt: '', botResponse: '', followUpOptions: [], currentFollowUp: '' });
+  const startWizard = (mapping?: FixedMapping, idx?: number) => {
+    if (mapping && idx !== undefined) {
+      setNewPair({ 
+        ...mapping, 
+        currentFollowUp: '', 
+        followUpOptions: mapping.followUpOptions || [] 
+      });
+      setEditingIdx(idx);
+    } else {
+      setNewPair({ userPrompt: '', botResponse: '', followUpOptions: [], currentFollowUp: '' });
+      setEditingIdx(null);
+    }
     setWizardStep(1);
     setIsWizardOpen(true);
   };
@@ -64,14 +79,19 @@ export default function BotConfigPage() {
   const finishWizard = () => {
     if (bot && newPair.userPrompt && newPair.botResponse) {
       const { currentFollowUp, ...mapping } = newPair;
-      setBot({
-        ...bot,
-        fixedMappings: [...bot.fixedMappings, mapping]
-      });
+      const newList = [...bot.fixedMappings];
+      
+      if (editingIdx !== null) {
+        newList[editingIdx] = mapping;
+      } else {
+        newList.push(mapping);
+      }
+
+      setBot({ ...bot, fixedMappings: newList });
       setIsWizardOpen(false);
       toast({
-        title: "Tree Node Added",
-        description: "New decision path has been mapped.",
+        title: editingIdx !== null ? "Node Updated" : "Tree Node Added",
+        description: "Decision path has been mapped.",
       });
     }
   };
@@ -100,6 +120,45 @@ export default function BotConfigPage() {
     }
   };
 
+  const handlePdfUpload = async () => {
+    if (!bot) return;
+    setIsUploading(true);
+    try {
+      const fileName = `manual_upload_${Date.now().toString().slice(-4)}.pdf`;
+      const { text } = await simulateOcrExtraction(fileName);
+      
+      const newSource: KnowledgeSource = {
+        id: Math.random().toString(36).substring(7),
+        name: fileName,
+        type: 'pdf',
+        content: text,
+        createdAt: new Date().toISOString()
+      };
+
+      setBot({
+        ...bot,
+        knowledgeSources: [...bot.knowledgeSources, newSource]
+      });
+
+      toast({
+        title: "OCR Pipeline Complete",
+        description: `Extracted data from ${fileName} added to knowledge base.`,
+      });
+    } catch (e) {
+      toast({ variant: "destructive", title: "OCR Error", description: "Could not process PDF." });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeKnowledgeSource = (idx: number) => {
+    if (bot) {
+      const next = [...bot.knowledgeSources];
+      next.splice(idx, 1);
+      setBot({ ...bot, knowledgeSources: next });
+    }
+  };
+
   const addInitialOption = (val: string) => {
     if (bot && val.trim()) {
       setBot({ ...bot, initialOptions: [...bot.initialOptions, val.trim()] });
@@ -124,7 +183,7 @@ export default function BotConfigPage() {
   if (!bot) return null;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-background">
+    <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">
       <header className="border-b border-border bg-card/30 h-16 shrink-0 flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-4">
           <Button asChild variant="ghost" size="icon">
@@ -219,7 +278,7 @@ export default function BotConfigPage() {
                     <h3 className="text-lg font-headline font-bold">Flow Logic Designer</h3>
                     <p className="text-sm text-muted-foreground">Define triggers and branches.</p>
                   </div>
-                  <Button onClick={startWizard} variant="outline" size="sm" className="border-accent text-accent hover:bg-accent/10">
+                  <Button onClick={() => startWizard()} variant="outline" size="sm" className="border-accent text-accent hover:bg-accent/10">
                     <Plus className="h-4 w-4 mr-2" /> Add Node
                   </Button>
                 </div>
@@ -228,21 +287,23 @@ export default function BotConfigPage() {
                   {bot.fixedMappings.map((mapping, idx) => (
                     <div key={idx} className="flex flex-col gap-2 p-4 rounded-lg border border-border bg-background group animate-in fade-in slide-in-from-top-1">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[9px] h-4 font-code">TRIGGER</Badge>
-                          <span className="text-sm font-bold">{mapping.userPrompt}</span>
+                        <div className="flex flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-[9px] h-4 font-code">USER</Badge>
+                            <span className="text-sm font-bold">{mapping.userPrompt}</span>
+                          </div>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => removeMapping(idx)}
-                          className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" onClick={() => startWizard(mapping, idx)} className="h-8 w-8 text-muted-foreground">
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => removeMapping(idx)} className="h-8 w-8 text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex items-start gap-2">
-                        <Badge variant="outline" className="text-[9px] h-4 font-code border-accent/30 text-accent">MSG</Badge>
+                        <Badge variant="outline" className="text-[9px] h-4 font-code border-accent/30 text-accent">BOT</Badge>
                         <span className="text-xs text-muted-foreground leading-relaxed">{mapping.botResponse}</span>
                       </div>
                       {mapping.followUpOptions && mapping.followUpOptions.length > 0 && (
@@ -260,23 +321,46 @@ export default function BotConfigPage() {
               </TabsContent>
 
               <TabsContent value="knowledge" className="mt-6 space-y-6">
-                <Card className="bg-primary/5 border-primary/20">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-primary" />
-                      Fallback Knowledge Base
-                    </CardTitle>
-                    <CardDescription>OCR Extract / Source Text</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Textarea 
-                      placeholder="Paste text extracts..."
-                      className="min-h-[300px] bg-background border-primary/20"
-                      value={bot.knowledgeBaseContent}
-                      onChange={e => setBot({...bot, knowledgeBaseContent: e.target.value})}
-                    />
-                  </CardContent>
-                </Card>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-headline font-bold">Multi-Source Repository</h3>
+                  <Button variant="outline" size="sm" onClick={handlePdfUpload} disabled={isUploading} className="border-primary/40">
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileUp className="h-4 w-4 mr-2" />}
+                    Upload PDF (OCR)
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  {bot.knowledgeSources.map((source, idx) => (
+                    <Card key={source.id} className="bg-background border-border overflow-hidden">
+                      <CardHeader className="p-4 bg-secondary/10 flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded bg-background border border-border">
+                            {source.type === 'pdf' ? <FileText className="h-4 w-4 text-primary" /> : <FileText className="h-4 w-4 text-accent" />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold leading-none">{source.name}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 uppercase">{source.type} Source</p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => removeKnowledgeSource(idx)} className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed italic">
+                          "{source.content}"
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {bot.knowledgeSources.length === 0 && (
+                    <div className="p-12 text-center border-2 border-dashed border-border rounded-xl">
+                      <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-4 opacity-20" />
+                      <p className="text-sm text-muted-foreground">No knowledge sources connected.</p>
+                    </div>
+                  )}
+                </div>
               </TabsContent>
 
               <TabsContent value="settings" className="mt-6 space-y-6">
@@ -333,7 +417,7 @@ export default function BotConfigPage() {
       <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Flow Node Designer</DialogTitle>
+            <DialogTitle>{editingIdx !== null ? "Edit Flow Node" : "Flow Node Designer"}</DialogTitle>
             <DialogDescription>
               Step {wizardStep} of 3
             </DialogDescription>
@@ -389,17 +473,21 @@ export default function BotConfigPage() {
             )}
           </div>
           <DialogFooter className="gap-2">
-            {wizardStep < 3 ? (
-              <Button 
-                onClick={() => setWizardStep(wizardStep + 1)} 
-                disabled={wizardStep === 1 ? !newPair.userPrompt.trim() : !newPair.botResponse.trim()}
-                className="w-full"
-              >
-                Next <ArrowRight className="h-4 w-4 ml-2" />
+            <div className="flex w-full justify-between">
+              <Button variant="ghost" onClick={() => setWizardStep(Math.max(1, wizardStep - 1))} disabled={wizardStep === 1}>
+                Back
               </Button>
-            ) : (
-              <Button onClick={finishWizard} className="w-full bg-primary">Create Node</Button>
-            )}
+              {wizardStep < 3 ? (
+                <Button 
+                  onClick={() => setWizardStep(wizardStep + 1)} 
+                  disabled={wizardStep === 1 ? !newPair.userPrompt.trim() : !newPair.botResponse.trim()}
+                >
+                  Next <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button onClick={finishWizard} className="bg-primary">{editingIdx !== null ? "Update Node" : "Create Node"}</Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

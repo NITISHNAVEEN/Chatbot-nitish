@@ -50,7 +50,7 @@ export default function PublicChatPage() {
         const result = await ragBotResponse({
           botId: bot.id,
           userMessage: userMessage,
-          knowledgeBaseContent: bot.knowledgeBaseContent,
+          knowledgeSources: bot.knowledgeSources.map(s => ({ name: s.name, content: s.content })),
           fixedResponses: bot.fixedMappings.map(m => ({
             userPrompt: m.userPrompt,
             botResponse: m.botResponse,

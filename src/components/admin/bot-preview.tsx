@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, Loader2, Info } from 'lucide-react';
+import { Send, Bot, Loader2 } from 'lucide-react';
 import { ragBotResponse } from '@/ai/flows/rag-bot-response-flow';
 import type { Chatbot } from '@/lib/mock-db';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,6 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Reset preview when bot config changes significantly (like initial options)
     setMessages([{
       role: 'bot',
       text: bot.welcomeMessage || `Hello! I am ${bot.name}.`,
@@ -43,7 +42,7 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
       const result = await ragBotResponse({
         botId: bot.id,
         userMessage: userMessage,
-        knowledgeBaseContent: bot.knowledgeBaseContent,
+        knowledgeSources: bot.knowledgeSources.map(s => ({ name: s.name, content: s.content })),
         fixedResponses: bot.fixedMappings.map(m => ({
           userPrompt: m.userPrompt,
           botResponse: m.botResponse,

@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview A deterministic, rules-based bot response engine.
- * Updated to handle tree-based navigation with follow-up options.
+ * Updated to handle multiple knowledge sources.
  */
 
 export type RagBotResponseInput = {
@@ -12,7 +12,7 @@ export type RagBotResponseInput = {
     botResponse?: string;
     followUpOptions?: string[];
   }[];
-  knowledgeBaseContent?: string;
+  knowledgeSources?: { name: string; content: string }[];
 };
 
 export type RagBotResponseOutput = {
@@ -21,42 +21,29 @@ export type RagBotResponseOutput = {
   followUpOptions?: string[];
 };
 
-/**
- * Deterministically finds the best response based on fixed mappings and knowledge base text.
- */
 export async function ragBotResponse(input: RagBotResponseInput): Promise<RagBotResponseOutput> {
   const userMsg = input.userMessage.toLowerCase().trim();
 
-  // 1. Check for exact matches in fixed training pairs (Custom Training Modality)
+  // 1. Check for matches in fixed training pairs
   if (input.fixedResponses) {
-    const exactMatch = input.fixedResponses.find(
-      (f) => f.userPrompt.toLowerCase().trim() === userMsg
+    const match = input.fixedResponses.find(
+      (f) => 
+        f.userPrompt.toLowerCase().trim() === userMsg ||
+        (userMsg.includes(f.userPrompt.toLowerCase().trim()) && f.userPrompt.length > 3)
     );
-    if (exactMatch && exactMatch.botResponse) {
+    if (match && match.botResponse) {
       return {
-        response: exactMatch.botResponse,
+        response: match.botResponse,
         responseSource: 'fixed',
-        followUpOptions: exactMatch.followUpOptions,
-      };
-    }
-
-    // 2. Check for partial matches in fixed training pairs
-    const partialMatch = input.fixedResponses.find(
-      (f) => userMsg.includes(f.userPrompt.toLowerCase().trim()) && f.userPrompt.length > 3
-    );
-    if (partialMatch && partialMatch.botResponse) {
-      return {
-        response: partialMatch.botResponse,
-        responseSource: 'fixed',
-        followUpOptions: partialMatch.followUpOptions,
+        followUpOptions: match.followUpOptions,
       };
     }
   }
 
-  // 3. Search Knowledge Base Content (Deterministic Substring Search)
-  if (input.knowledgeBaseContent) {
-    // Split into sentences for more precise matching
-    const sentences = input.knowledgeBaseContent.split(/[.!\n\?]/).map(s => s.trim()).filter(s => s.length > 5);
+  // 2. Search all Knowledge Base Sources
+  if (input.knowledgeSources && input.knowledgeSources.length > 0) {
+    const combinedContent = input.knowledgeSources.map(s => s.content).join('\n\n');
+    const sentences = combinedContent.split(/[.!\n\?]/).map(s => s.trim()).filter(s => s.length > 5);
     const keywords = userMsg.split(/\s+/).filter(w => w.length > 3);
 
     let bestSentence = '';
@@ -85,7 +72,6 @@ export async function ragBotResponse(input: RagBotResponseInput): Promise<RagBot
     }
   }
 
-  // 4. Fallback if no rules or resources match
   return {
     response: "I'm sorry, I couldn't find a specific rule or resource to answer that question. Please try rephrasing or contact support.",
     responseSource: 'fallback',
