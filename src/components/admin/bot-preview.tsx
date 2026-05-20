@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, Loader2 } from 'lucide-react';
+import { Send, Bot, Loader2, RefreshCcw } from 'lucide-react';
 import { ragBotResponse } from '@/ai/flows/rag-bot-response-flow';
 import type { Chatbot } from '@/lib/mock-db';
 import { Badge } from '@/components/ui/badge';
@@ -16,12 +16,17 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const resetChat = () => {
     setMessages([{
       role: 'bot',
       text: bot.welcomeMessage || `Hello! I am ${bot.name}.`,
       options: bot.initialOptions
     }]);
+    setInput('');
+  };
+
+  useEffect(() => {
+    resetChat();
   }, [bot.id, bot.welcomeMessage, bot.initialOptions]);
 
   useEffect(() => {
@@ -70,7 +75,18 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
             <div className="w-2 h-2 rounded-full bg-primary" />
             Node Matcher
           </div>
-          <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-primary/20">Decision Tree</Badge>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={resetChat} 
+              className="h-6 w-6 text-muted-foreground hover:text-primary"
+              title="New Chat"
+            >
+              <RefreshCcw className="h-3 w-3" />
+            </Button>
+            <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-primary/20">Decision Tree</Badge>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0 flex flex-col min-h-0">

@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, Loader2, ShieldCheck, Info, PowerOff } from 'lucide-react';
+import { Send, Bot, Loader2, ShieldCheck, Info, PowerOff, RefreshCcw } from 'lucide-react';
 import { ragBotResponse } from '@/ai/flows/rag-bot-response-flow';
 import { getChatbotById, recordUnansweredQuestion, type Chatbot } from '@/lib/mock-db';
 
@@ -75,6 +75,17 @@ export default function PublicChatPage() {
     }, 400);
   };
 
+  const handleNewChat = () => {
+    if (bot && bot.status === 'online') {
+      setMessages([{ 
+        role: 'bot', 
+        text: bot.welcomeMessage || `Hello! I am ${bot.name}. I am a rules-based assistant for ${bot.topic}.`,
+        options: bot.initialOptions
+      }]);
+      setInput('');
+    }
+  };
+
   if (!bot) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6 text-center">
@@ -125,8 +136,18 @@ export default function PublicChatPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleNewChat} 
+            className="text-xs text-muted-foreground hover:text-primary gap-2 h-8"
+          >
+            <RefreshCcw className="h-3 w-3" />
+            <span className="hidden sm:inline">New Chat</span>
+          </Button>
+          <div className="w-px h-4 bg-border mx-1" />
           <ShieldCheck className="h-4 w-4 text-accent" />
-          <span className="text-[10px] text-accent font-medium uppercase tracking-widest">Guided Flow</span>
+          <span className="text-[10px] text-accent font-medium uppercase tracking-widest hidden sm:inline">Guided Flow</span>
         </div>
       </header>
 
