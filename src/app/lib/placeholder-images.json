@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Abstract technological background with purple waves",
+      "imageUrl": "https://picsum.photos/seed/linkthread-hero/1200/800",
+      "imageHint": "technology abstract"
+    },
+    {
+      "id": "avatar-bot",
+      "description": "Clean minimalist bot icon",
+      "imageUrl": "https://picsum.photos/seed/bot-avatar/100/100",
+      "imageHint": "robot icon"
+    }
+  ]
+}
