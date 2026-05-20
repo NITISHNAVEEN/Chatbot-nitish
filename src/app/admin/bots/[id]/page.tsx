@@ -17,6 +17,7 @@ import { BotPreview } from '@/components/admin/bot-preview';
 import { getChatbotById, updateChatbot, type Chatbot, type FixedMapping } from '@/lib/mock-db';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 export default function BotConfigPage() {
   const { id } = useParams();
