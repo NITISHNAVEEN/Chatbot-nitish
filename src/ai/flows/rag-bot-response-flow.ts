@@ -1,8 +1,7 @@
 'use server';
 /**
  * @fileOverview A deterministic, rules-based bot response engine.
- * This file replaces the previous AI-driven RAG flow with a strictly logic-based matcher.
- * It follows the user requirement to remove all AI/API dependencies for answering.
+ * Updated to handle tree-based navigation with follow-up options.
  */
 
 export type RagBotResponseInput = {
@@ -11,6 +10,7 @@ export type RagBotResponseInput = {
   fixedResponses?: {
     userPrompt: string;
     botResponse?: string;
+    followUpOptions?: string[];
   }[];
   knowledgeBaseContent?: string;
 };
@@ -18,6 +18,7 @@ export type RagBotResponseInput = {
 export type RagBotResponseOutput = {
   response: string;
   responseSource: 'fixed' | 'knowledge_base' | 'fallback';
+  followUpOptions?: string[];
 };
 
 /**
@@ -35,6 +36,7 @@ export async function ragBotResponse(input: RagBotResponseInput): Promise<RagBot
       return {
         response: exactMatch.botResponse,
         responseSource: 'fixed',
+        followUpOptions: exactMatch.followUpOptions,
       };
     }
 
@@ -46,6 +48,7 @@ export async function ragBotResponse(input: RagBotResponseInput): Promise<RagBot
       return {
         response: partialMatch.botResponse,
         responseSource: 'fixed',
+        followUpOptions: partialMatch.followUpOptions,
       };
     }
   }

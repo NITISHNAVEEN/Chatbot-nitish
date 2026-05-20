@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 export default function PublicChatPage() {
   const { id } = useParams();
   const [bot, setBot] = useState<Chatbot | null>(null);
-  const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string; source?: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string; options?: string[] }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -24,7 +24,8 @@ export default function PublicChatPage() {
       setBot(found);
       setMessages([{ 
         role: 'bot', 
-        text: `Hello! I am ${found.name}. I am a rules-based assistant for ${found.topic}. Ask me anything within my scope.` 
+        text: found.welcomeMessage || `Hello! I am ${found.name}. I am a rules-based assistant for ${found.topic}.`,
+        options: found.initialOptions
       }]);
     }
   }, [id]);
@@ -35,10 +36,10 @@ export default function PublicChatPage() {
     }
   }, [messages, isLoading]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading || !bot) return;
+  const handleSend = async (text?: string) => {
+    const userMessage = text || input.trim();
+    if (!userMessage || isLoading || !bot) return;
 
-    const userMessage = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
     setIsLoading(true);
@@ -52,14 +53,15 @@ export default function PublicChatPage() {
           knowledgeBaseContent: bot.knowledgeBaseContent,
           fixedResponses: bot.fixedMappings.map(m => ({
             userPrompt: m.userPrompt,
-            botResponse: m.botResponse
+            botResponse: m.botResponse,
+            followUpOptions: m.followUpOptions
           }))
         });
 
         setMessages(prev => [...prev, { 
           role: 'bot', 
           text: result.response,
-          source: result.responseSource
+          options: result.followUpOptions
         }]);
       } catch (error) {
         setMessages(prev => [...prev, { role: 'bot', text: "Service temporarily unavailable. Please try again." }]);
@@ -100,7 +102,7 @@ export default function PublicChatPage() {
         </div>
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-accent" />
-          <span className="text-[10px] text-accent font-medium uppercase tracking-widest">Rule Book Guided</span>
+          <span className="text-[10px] text-accent font-medium uppercase tracking-widest">Guided Flow</span>
         </div>
       </header>
 
@@ -111,7 +113,7 @@ export default function PublicChatPage() {
             {messages.map((msg, i) => (
               <div
                 key={i}
-                className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'} chat-bubble-fade-in`}
+                className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'} chat-bubble-fade-in`}
               >
                 <div className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed ${
                   msg.role === 'user' 
@@ -120,10 +122,22 @@ export default function PublicChatPage() {
                 }`}>
                   {msg.text}
                 </div>
-                {msg.role === 'bot' && msg.source && msg.source !== 'fallback' && (
-                  <span className="text-[9px] text-muted-foreground px-2 italic">
-                    Answer source: {msg.source === 'fixed' ? 'Training Pair' : 'Knowledge Resource'}
-                  </span>
+                
+                {msg.role === 'bot' && msg.options && msg.options.length > 0 && i === messages.length - 1 && (
+                  <div className="flex flex-wrap gap-2 mt-2 max-w-[90%]">
+                    {msg.options.map((opt, idx) => (
+                      <Button
+                        key={idx}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSend(opt)}
+                        disabled={isLoading}
+                        className="bg-background/50 border-primary/20 hover:bg-primary/10 hover:border-primary/50 text-xs rounded-full h-8"
+                      >
+                        {opt}
+                      </Button>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}
@@ -151,7 +165,7 @@ export default function PublicChatPage() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask based on rule book..."
+            placeholder="Type or select an option..."
             className="pr-12 bg-[#121118] border-border h-12 rounded-xl focus-visible:ring-primary/50"
             disabled={isLoading}
           />
@@ -165,7 +179,7 @@ export default function PublicChatPage() {
           </Button>
         </form>
         <p className="text-[10px] text-center text-muted-foreground mt-3 uppercase tracking-tighter opacity-50">
-          LinkThread Deterministic Engine v2
+          LinkThread Decision Tree v3
         </p>
       </footer>
     </div>

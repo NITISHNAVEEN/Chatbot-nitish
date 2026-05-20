@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, Info, ArrowRight, MessageCircle, FileText } from 'lucide-react';
+import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, Info, ArrowRight, MessageCircle, FileText, X } from 'lucide-react';
 import { BotPreview } from '@/components/admin/bot-preview';
 import { getChatbotById, updateChatbot, type Chatbot, type FixedMapping } from '@/lib/mock-db';
 import { useToast } from '@/hooks/use-toast';
@@ -30,7 +30,12 @@ export default function BotConfigPage() {
   // Wizard state
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
-  const [newPair, setNewPair] = useState<FixedMapping>({ userPrompt: '', botResponse: '' });
+  const [newPair, setNewPair] = useState<FixedMapping & { currentFollowUp: string }>({ 
+    userPrompt: '', 
+    botResponse: '', 
+    followUpOptions: [],
+    currentFollowUp: ''
+  });
 
   useEffect(() => {
     const found = getChatbotById(id as string);
@@ -45,30 +50,47 @@ export default function BotConfigPage() {
     if (bot) {
       updateChatbot(bot.id, bot);
       toast({
-        title: "Rules Updated",
-        description: "Deterministic engine has been synchronized with your changes.",
+        title: "Tree Synchronized",
+        description: "Decision engine updated with latest nodes and branches.",
       });
     }
   };
 
   const startWizard = () => {
-    setNewPair({ userPrompt: '', botResponse: '' });
+    setNewPair({ userPrompt: '', botResponse: '', followUpOptions: [], currentFollowUp: '' });
     setWizardStep(1);
     setIsWizardOpen(true);
   };
 
   const finishWizard = () => {
     if (bot && newPair.userPrompt && newPair.botResponse) {
+      const { currentFollowUp, ...mapping } = newPair;
       setBot({
         ...bot,
-        fixedMappings: [...bot.fixedMappings, { ...newPair }]
+        fixedMappings: [...bot.fixedMappings, mapping]
       });
       setIsWizardOpen(false);
       toast({
-        title: "Training Pair Added",
-        description: "Your bot will now respond to this prompt deterministically.",
+        title: "Tree Node Added",
+        description: "New decision path has been mapped.",
       });
     }
+  };
+
+  const addFollowUp = () => {
+    if (newPair.currentFollowUp.trim()) {
+      setNewPair({
+        ...newPair,
+        followUpOptions: [...(newPair.followUpOptions || []), newPair.currentFollowUp.trim()],
+        currentFollowUp: ''
+      });
+    }
+  };
+
+  const removeFollowUp = (idx: number) => {
+    const next = [...(newPair.followUpOptions || [])];
+    next.splice(idx, 1);
+    setNewPair({ ...newPair, followUpOptions: next });
   };
 
   const removeMapping = (index: number) => {
@@ -76,6 +98,20 @@ export default function BotConfigPage() {
       const newList = [...bot.fixedMappings];
       newList.splice(index, 1);
       setBot({ ...bot, fixedMappings: newList });
+    }
+  };
+
+  const addInitialOption = (val: string) => {
+    if (bot && val.trim()) {
+      setBot({ ...bot, initialOptions: [...bot.initialOptions, val.trim()] });
+    }
+  };
+
+  const removeInitialOption = (idx: number) => {
+    if (bot) {
+      const next = [...bot.initialOptions];
+      next.splice(idx, 1);
+      setBot({ ...bot, initialOptions: next });
     }
   };
 
@@ -98,7 +134,7 @@ export default function BotConfigPage() {
           <div className="h-8 w-px bg-border" />
           <div>
             <h1 className="text-lg font-headline font-bold">{bot.name}</h1>
-            <p className="text-xs text-muted-foreground font-code uppercase tracking-tighter">Deterministic Mode</p>
+            <p className="text-xs text-muted-foreground font-code uppercase tracking-tighter">Tree Engine Mode</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -107,7 +143,7 @@ export default function BotConfigPage() {
             {copied ? 'Copied' : 'Share Link'}
           </Button>
           <Button size="sm" onClick={handleSave} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-            <Save className="h-4 w-4 mr-2" /> Sync Engine
+            <Save className="h-4 w-4 mr-2" /> Save Decision Tree
           </Button>
         </div>
       </header>
@@ -117,110 +153,121 @@ export default function BotConfigPage() {
           <div className="p-8 space-y-8">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="bg-secondary/30 grid w-full grid-cols-3 p-1">
-                <TabsTrigger value="general">Settings</TabsTrigger>
-                <TabsTrigger value="training">Training Rules</TabsTrigger>
-                <TabsTrigger value="knowledge">Resources</TabsTrigger>
+                <TabsTrigger value="general">Tree Root</TabsTrigger>
+                <TabsTrigger value="training">Decision Nodes</TabsTrigger>
+                <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
               </TabsList>
 
               <TabsContent value="general" className="mt-6 space-y-6">
                 <Card className="bg-background border-border">
                   <CardHeader>
-                    <CardTitle className="text-lg font-headline">Bot Identity</CardTitle>
-                    <CardDescription>Basic configurations for the instance</CardDescription>
+                    <CardTitle className="text-lg font-headline">Entry Point</CardTitle>
+                    <CardDescription>What the user sees first</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Display Name</Label>
-                      <Input 
-                        value={bot.name} 
-                        onChange={e => setBot({...bot, name: e.target.value})}
-                        className="bg-background"
+                      <Label>Welcome Message</Label>
+                      <Textarea 
+                        value={bot.welcomeMessage || ''} 
+                        onChange={e => setBot({...bot, welcomeMessage: e.target.value})}
+                        placeholder="e.g. Hello! How can I help you today?"
+                        className="bg-background min-h-[80px]"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Primary Topic</Label>
-                      <Input 
-                        value={bot.topic} 
-                        onChange={e => setBot({...bot, topic: e.target.value})}
-                        className="bg-background"
-                      />
+                      <Label>Initial Menu Options</Label>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {bot.initialOptions.map((opt, i) => (
+                          <Badge key={i} variant="secondary" className="gap-1 px-2 py-1">
+                            {opt}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => removeInitialOption(i)} />
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input 
+                          placeholder="Add starting option..." 
+                          id="new-init-opt"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              addInitialOption((e.target as HTMLInputElement).value);
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                        <Button variant="outline" size="icon" onClick={() => {
+                          const input = document.getElementById('new-init-opt') as HTMLInputElement;
+                          addInitialOption(input.value);
+                          input.value = '';
+                        }}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 <div className="space-y-4">
-                  <Label className="text-base font-headline">System Regulations</Label>
-                  <RadioGroup 
-                    value={bot.rulesType} 
-                    onValueChange={(val: 'master' | 'custom') => setBot({...bot, rulesType: val})}
-                  >
-                    <div className="flex items-center space-x-3 rounded-lg border border-border p-4 bg-background/50">
-                      <RadioGroupItem value="master" id="r1" />
-                      <Label htmlFor="r1" className="flex-1 cursor-pointer">
-                        <span className="font-bold block">Master Compliance</span>
-                        <span className="text-xs text-muted-foreground">Apply global organization-wide standard behavior.</span>
-                      </Label>
+                  <Label className="text-base font-headline">Identity & Governance</Label>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Bot Name</Label>
+                      <Input value={bot.name} onChange={e => setBot({...bot, name: e.target.value})} />
                     </div>
-                    <div className="flex items-center space-x-3 rounded-lg border border-border p-4 bg-background/50">
-                      <RadioGroupItem value="custom" id="r2" />
-                      <Label htmlFor="r2" className="flex-1 cursor-pointer">
-                        <span className="font-bold block">Instance Custom Rules</span>
-                        <span className="text-xs text-muted-foreground">Define logic specific to this bot instance.</span>
-                      </Label>
+                    <div className="space-y-2">
+                      <Label>Assigned Topic</Label>
+                      <Input value={bot.topic} onChange={e => setBot({...bot, topic: e.target.value})} />
                     </div>
-                  </RadioGroup>
-
-                  {bot.rulesType === 'custom' && (
-                    <div className="space-y-2 pt-2">
-                      <Label>Override Regulations</Label>
-                      <Textarea 
-                        placeholder="Define strict behavior rules..."
-                        className="min-h-[150px] font-code text-sm bg-background border-primary/20"
-                        value={bot.customRules}
-                        onChange={e => setBot({...bot, customRules: e.target.value})}
-                      />
-                    </div>
-                  )}
+                  </div>
                 </div>
               </TabsContent>
 
               <TabsContent value="training" className="mt-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-headline font-bold">Custom Training Wizard</h3>
-                    <p className="text-sm text-muted-foreground">Map triggers to specific responses step-by-step.</p>
+                    <h3 className="text-lg font-headline font-bold">Flow Logic Designer</h3>
+                    <p className="text-sm text-muted-foreground">Define triggers and their resulting branches.</p>
                   </div>
                   <Button onClick={startWizard} variant="outline" size="sm" className="border-accent text-accent hover:bg-accent/10">
-                    <Plus className="h-4 w-4 mr-2" /> Add Rule
+                    <Plus className="h-4 w-4 mr-2" /> Add Node
                   </Button>
                 </div>
 
                 <div className="space-y-3">
                   {bot.fixedMappings.map((mapping, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background group animate-in fade-in slide-in-from-top-1">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="text-[9px] h-4 font-code">USER</Badge>
-                          <span className="text-sm font-medium">{mapping.userPrompt}</span>
-                        </div>
+                    <div key={idx} className="flex flex-col gap-2 p-4 rounded-lg border border-border bg-background group animate-in fade-in slide-in-from-top-1">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[9px] h-4 font-code border-accent/30 text-accent">BOT</Badge>
-                          <span className="text-xs text-muted-foreground line-clamp-1">{mapping.botResponse}</span>
+                          <Badge variant="outline" className="text-[9px] h-4 font-code">TRIGGER</Badge>
+                          <span className="text-sm font-bold">{mapping.userPrompt}</span>
                         </div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => removeMapping(idx)}
+                          className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => removeMapping(idx)}
-                        className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-start gap-2">
+                        <Badge variant="outline" className="text-[9px] h-4 font-code border-accent/30 text-accent">MSG</Badge>
+                        <span className="text-xs text-muted-foreground leading-relaxed">{mapping.botResponse}</span>
+                      </div>
+                      {mapping.followUpOptions && mapping.followUpOptions.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1 pl-6">
+                          {mapping.followUpOptions.map((opt, i) => (
+                            <Badge key={i} variant="secondary" className="text-[8px] h-4">
+                              → {opt}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {bot.fixedMappings.length === 0 && (
                     <div className="text-center py-12 border border-dashed rounded-xl text-muted-foreground bg-secondary/10">
-                      No custom rules defined. Click "Add Rule" to start the wizard.
+                      No flow nodes defined. Start building your tree.
                     </div>
                   )}
                 </div>
@@ -231,25 +278,19 @@ export default function BotConfigPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5 text-primary" />
-                      Deterministic Knowledge Base
+                      Fallback Knowledge Base
                     </CardTitle>
-                    <CardDescription>Searchable resource content (e.g. OCR text extracts)</CardDescription>
+                    <CardDescription>Resources used if no tree node is matched</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Source Text</Label>
+                      <Label>OCR Extract / Source Text</Label>
                       <Textarea 
-                        placeholder="Paste text extracted from PDFs or web resources..."
-                        className="min-h-[300px] bg-background border-primary/20 focus:ring-primary/40"
+                        placeholder="Paste text extracts..."
+                        className="min-h-[300px] bg-background border-primary/20"
                         value={bot.knowledgeBaseContent}
                         onChange={e => setBot({...bot, knowledgeBaseContent: e.target.value})}
                       />
-                    </div>
-                    <div className="flex items-start gap-2 text-xs text-muted-foreground p-3 bg-background/50 rounded-lg border border-border">
-                      <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                      <span>
-                        The engine uses keyword-weight matching to find the best sentence from this content if no direct Training Rule is matched.
-                      </span>
                     </div>
                   </CardContent>
                 </Card>
@@ -261,8 +302,8 @@ export default function BotConfigPage() {
         {/* Right Preview Panel */}
         <div className="w-1/2 h-full bg-background p-8 flex flex-col">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-headline uppercase tracking-widest text-muted-foreground">Deterministic Preview</h2>
-            <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20">NO-AI MODE</Badge>
+            <h2 className="text-sm font-headline uppercase tracking-widest text-muted-foreground">Tree Preview</h2>
+            <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20">DETERMINISTIC FLOW</Badge>
           </div>
           <div className="flex-1 min-h-0">
             <BotPreview bot={bot} />
@@ -270,28 +311,27 @@ export default function BotConfigPage() {
         </div>
       </main>
 
-      {/* Step-by-Step Training Wizard */}
+      {/* Decision Node Wizard */}
       <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Training Rule Wizard</DialogTitle>
+            <DialogTitle>Flow Node Designer</DialogTitle>
             <DialogDescription>
-              Step {wizardStep} of 2: {wizardStep === 1 ? 'Define User Trigger' : 'Define Bot Response'}
+              Step {wizardStep} of 3: {wizardStep === 1 ? 'Trigger' : wizardStep === 2 ? 'Response' : 'Follow-up Branches'}
             </DialogDescription>
-            <Progress value={wizardStep === 1 ? 50 : 100} className="h-1 mt-2" />
+            <Progress value={(wizardStep / 3) * 100} className="h-1 mt-2" />
           </DialogHeader>
           
           <div className="py-4 space-y-4">
             {wizardStep === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
-                <div className="p-3 bg-primary/5 rounded-lg border border-primary/10 flex items-center gap-3">
-                  <MessageCircle className="h-5 w-5 text-primary" />
-                  <span className="text-xs">Think of a question users often ask about <strong>{bot.topic}</strong>.</span>
+                <div className="p-3 bg-primary/5 rounded-lg border border-primary/10 text-xs">
+                  What button label or user phrase triggers this path?
                 </div>
                 <div className="space-y-2">
-                  <Label>User says...</Label>
+                  <Label>Trigger Phrase / Button Label</Label>
                   <Input 
-                    placeholder="e.g. How do I reset my password?" 
+                    placeholder="e.g. Technical Support" 
                     value={newPair.userPrompt}
                     onChange={(e) => setNewPair({...newPair, userPrompt: e.target.value})}
                     autoFocus
@@ -302,14 +342,13 @@ export default function BotConfigPage() {
             
             {wizardStep === 2 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
-                <div className="p-3 bg-accent/5 rounded-lg border border-accent/10 flex items-center gap-3">
-                  <CheckCircle className="h-5 w-5 text-accent" />
-                  <span className="text-xs">Now, define exactly how the bot should respond to "<strong>{newPair.userPrompt}</strong>".</span>
+                <div className="p-3 bg-accent/5 rounded-lg border border-accent/10 text-xs">
+                  What message does the bot send when triggered?
                 </div>
                 <div className="space-y-2">
-                  <Label>Bot responds with...</Label>
+                  <Label>Bot Response</Label>
                   <Textarea 
-                    placeholder="Provide a clear, accurate answer..." 
+                    placeholder="Provide the answer or instructions..." 
                     value={newPair.botResponse}
                     onChange={(e) => setNewPair({...newPair, botResponse: e.target.value})}
                     className="min-h-[100px]"
@@ -318,26 +357,55 @@ export default function BotConfigPage() {
                 </div>
               </div>
             )}
+
+            {wizardStep === 3 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
+                <div className="p-3 bg-secondary/30 rounded-lg border border-border text-xs">
+                  Add suggested next steps for the user (optional).
+                </div>
+                <div className="space-y-2">
+                  <Label>Suggested Branches (Quick Replies)</Label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {newPair.followUpOptions?.map((opt, i) => (
+                      <Badge key={i} variant="secondary" className="gap-1">
+                        {opt}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => removeFollowUp(i)} />
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Add follow-up option..." 
+                      value={newPair.currentFollowUp}
+                      onChange={(e) => setNewPair({...newPair, currentFollowUp: e.target.value})}
+                      onKeyDown={(e) => e.key === 'Enter' && addFollowUp()}
+                    />
+                    <Button variant="outline" size="icon" onClick={addFollowUp}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           <DialogFooter className="gap-2">
-            {wizardStep === 1 ? (
+            {wizardStep < 3 ? (
               <Button 
-                onClick={() => setWizardStep(2)} 
-                disabled={!newPair.userPrompt.trim()}
+                onClick={() => setWizardStep(wizardStep + 1)} 
+                disabled={wizardStep === 1 ? !newPair.userPrompt.trim() : !newPair.botResponse.trim()}
                 className="w-full"
               >
-                Next Step <ArrowRight className="h-4 w-4 ml-2" />
+                Next <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             ) : (
               <>
-                <Button variant="ghost" onClick={() => setWizardStep(1)}>Back</Button>
+                <Button variant="ghost" onClick={() => setWizardStep(2)}>Back</Button>
                 <Button 
                   onClick={finishWizard} 
-                  disabled={!newPair.botResponse.trim()}
                   className="bg-primary hover:bg-primary/90 flex-1"
                 >
-                  Create Training Rule
+                  Create Node
                 </Button>
               </>
             )}

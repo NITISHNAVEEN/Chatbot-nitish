@@ -11,10 +11,19 @@ import type { Chatbot } from '@/lib/mock-db';
 import { Badge } from '@/components/ui/badge';
 
 export function BotPreview({ bot }: { bot: Chatbot }) {
-  const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string; source?: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: 'bot' | 'user'; text: string; options?: string[] }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Reset preview when bot config changes significantly (like initial options)
+    setMessages([{
+      role: 'bot',
+      text: bot.welcomeMessage || `Hello! I am ${bot.name}.`,
+      options: bot.initialOptions
+    }]);
+  }, [bot.id, bot.welcomeMessage, bot.initialOptions]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -22,10 +31,10 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
     }
   }, [messages, isLoading]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (text?: string) => {
+    const userMessage = text || input.trim();
+    if (!userMessage || isLoading) return;
 
-    const userMessage = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
     setIsLoading(true);
@@ -37,17 +46,18 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
         knowledgeBaseContent: bot.knowledgeBaseContent,
         fixedResponses: bot.fixedMappings.map(m => ({
           userPrompt: m.userPrompt,
-          botResponse: m.botResponse
+          botResponse: m.botResponse,
+          followUpOptions: m.followUpOptions
         }))
       });
 
       setMessages(prev => [...prev, { 
         role: 'bot', 
         text: result.response,
-        source: result.responseSource 
+        options: result.followUpOptions
       }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'bot', text: "Error syncing with rules engine." }]);
+      setMessages(prev => [...prev, { role: 'bot', text: "Error syncing with tree engine." }]);
     } finally {
       setIsLoading(false);
     }
@@ -59,25 +69,14 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
         <CardTitle className="text-sm font-headline flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary" />
-            Rule Matcher
+            Node Matcher
           </div>
-          <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-primary/20">Deterministic</Badge>
+          <Badge variant="outline" className="text-[9px] uppercase tracking-tighter border-primary/20">Decision Tree</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0 flex flex-col min-h-0">
         <ScrollArea className="flex-1 p-4" ref={scrollRef}>
           <div className="space-y-4">
-            {messages.length === 0 && (
-              <div className="text-center py-12 flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
-                  <Info className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Ready for testing</p>
-                  <p className="text-[10px] text-muted-foreground px-8">Verify your Training Rules and Resources by typing a message below.</p>
-                </div>
-              </div>
-            )}
             {messages.map((msg, i) => (
               <div
                 key={i}
@@ -90,12 +89,22 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
                 }`}>
                   {msg.text}
                 </div>
-                {msg.role === 'bot' && msg.source && (
-                  <span className={`text-[8px] uppercase tracking-tighter px-1 ${
-                    msg.source === 'fallback' ? 'text-destructive' : 'text-accent'
-                  }`}>
-                    {msg.source.replace('_', ' ')}
-                  </span>
+                
+                {msg.role === 'bot' && msg.options && msg.options.length > 0 && i === messages.length - 1 && (
+                   <div className="flex flex-wrap gap-1 mt-1 max-w-[95%]">
+                   {msg.options.map((opt, idx) => (
+                     <Button
+                       key={idx}
+                       variant="outline"
+                       size="sm"
+                       onClick={() => handleSend(opt)}
+                       disabled={isLoading}
+                       className="bg-background/80 border-primary/30 hover:bg-primary/10 text-[10px] rounded-full h-7 px-3"
+                     >
+                       {opt}
+                     </Button>
+                   ))}
+                 </div>
                 )}
               </div>
             ))}
@@ -116,7 +125,7 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Test a prompt..."
+              placeholder="Test a branch..."
               className="bg-background h-10 rounded-lg text-xs"
             />
             <Button size="icon" disabled={isLoading} className="bg-primary hover:bg-primary/90 h-10 w-10">
