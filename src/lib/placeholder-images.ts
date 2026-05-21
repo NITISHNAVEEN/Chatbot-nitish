@@ -1,4 +1,5 @@
-import data from './placeholder-images.json';
+// Re-export placeholder functions from the new module
+export { getPlaceholderImage, getRandomPlaceholderImage, placeholderImages } from './generate-placeholder';
 
 export type ImagePlaceholder = {
   id: string;
@@ -7,4 +8,3 @@ export type ImagePlaceholder = {
   imageHint: string;
 };
 
-export const PlaceHolderImages: ImagePlaceholder[] = data.placeholderImages;

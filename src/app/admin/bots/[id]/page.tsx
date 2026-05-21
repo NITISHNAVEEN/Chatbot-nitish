@@ -172,27 +172,72 @@ export default function BotConfigPage() {
         createdAt: new Date().toISOString()
       };
 
-      setBot({
+      const updatedBot = {
         ...bot,
         knowledgeSources: [...bot.knowledgeSources, newSource]
+      };
+
+      // Update in database with complete bot object
+      const response = await fetch(`/api/bots/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedBot),
       });
 
-      toast({
-        title: "OCR Pipeline Complete",
-        description: `Extracted data from ${fileName} added to knowledge base.`,
-      });
+      if (response.ok) {
+        const result = await response.json();
+        setBot(result);
+        toast({
+          title: "OCR Pipeline Complete",
+          description: `Extracted data from ${fileName} added to knowledge base.`,
+        });
+      } else {
+        const errorData = await response.text();
+        console.error('API Error Response:', errorData);
+        throw new Error(`API Error: ${response.status} - ${errorData}`);
+      }
     } catch (e) {
-      toast({ variant: "destructive", title: "OCR Error", description: "Could not process PDF." });
+      console.error('PDF upload error:', e);
+      toast({ 
+        variant: "destructive", 
+        title: "OCR Error", 
+        description: e instanceof Error ? e.message : "Could not process PDF." 
+      });
     } finally {
       setIsUploading(false);
     }
   };
 
-  const removeKnowledgeSource = (idx: number) => {
-    if (bot) {
-      const next = [...bot.knowledgeSources];
-      next.splice(idx, 1);
-      setBot({ ...bot, knowledgeSources: next });
+  const removeKnowledgeSource = async (idx: number) => {
+    if (!bot) return;
+    
+    const next = [...bot.knowledgeSources];
+    next.splice(idx, 1);
+    
+    try {
+      const updatedBot = { ...bot, knowledgeSources: next };
+      
+      const response = await fetch(`/api/bots/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedBot),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setBot(result);
+      } else {
+        const errorData = await response.text();
+        console.error('API Error Response:', errorData);
+        throw new Error('Failed to remove knowledge source');
+      }
+    } catch (error) {
+      console.error('Error removing knowledge source:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to remove knowledge source.",
+      });
     }
   };
 

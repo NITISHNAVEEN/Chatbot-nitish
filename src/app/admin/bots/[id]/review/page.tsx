@@ -354,7 +354,7 @@ export default function ReviewInboxPage() {
             </Card>
           ) : (
             paginatedQuestions.map((q) => (
-              <Card key={q.id} className="bg-card/40 border-border/50 hover:border-accent/30 transition-all group overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+              <Card key={q._id?.toString()} className="bg-card/40 border-border/50 hover:border-accent/30 transition-all group overflow-hidden animate-in fade-in slide-in-from-bottom-2">
                 <CardHeader className="pb-4">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2">
@@ -364,7 +364,7 @@ export default function ReviewInboxPage() {
                         {new Date(q.timestamp).toLocaleDateString()}
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleResolve(q.id)} className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors">
+                    <Button variant="ghost" size="icon" onClick={() => handleResolve(q._id?.toString() || '')} className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

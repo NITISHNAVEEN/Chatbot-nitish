@@ -68,7 +68,7 @@ export async function updateChatbot(id: string, updates: UpdateChatbotInput): Pr
       { returnDocument: 'after' }
     );
     
-    return result.value || null;
+    return result && result.value ? result.value : null;
   } catch (error) {
     console.error('Error updating bot:', error);
     return null;

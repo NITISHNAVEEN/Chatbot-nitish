@@ -23,6 +23,14 @@ const UpdateBotSchema = z.object({
     botResponse: z.string(),
     followUpOptions: z.array(z.string()).optional(),
   })).optional(),
+  unansweredQuestions: z.array(z.object({
+    _id: z.any().optional(),
+    text: z.string(),
+    timestamp: z.string(),
+    status: z.enum(['pending', 'resolved']),
+  })).optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 interface RouteParams {
@@ -77,20 +85,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 500 }
       );
     }
-    
     return NextResponse.json(updatedBot, { status: 200 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-    return NextResponse.json(
+      console.error('Zod validation error:', error.errors);
+      return NextResponse.json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }
-    );
+      );
     }
 
-    
     console.error('Error updating bot:', error);
     return NextResponse.json(
-      { error: 'Failed to update bot' },
+      { error: 'Failed to update bot', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
