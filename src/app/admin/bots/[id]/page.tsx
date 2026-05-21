@@ -13,8 +13,8 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ChevronLeft, Save, Trash2, Plus, Copy, CheckCircle, ArrowRight, FileText, X, Settings, Power, Edit3, FileUp, Loader2, Inbox } from 'lucide-react';
 import { BotPreview } from '@/components/admin/bot-preview';
-import { getChatbotById, updateChatbot, type Chatbot, type FixedMapping, type KnowledgeSource } from '@/lib/mock-db';
 import { useToast } from '@/hooks/use-toast';
+import type { Chatbot, FixedMapping, KnowledgeSource } from '@/lib/mongodb-models';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { simulateOcrExtraction } from '@/ai/flows/ocr-extraction-flow';
@@ -24,6 +24,7 @@ export default function BotConfigPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [bot, setBot] = useState<Chatbot | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('training');
   const [copied, setCopied] = useState(false);
   
@@ -42,21 +43,57 @@ export default function BotConfigPage() {
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    const found = getChatbotById(id as string);
-    if (!found) {
-      router.push('/admin/dashboard');
-      return;
+    async function fetchBot() {
+      try {
+        const response = await fetch(`/api/bots/${id}`);
+        if (!response.ok) {
+          router.push('/admin/dashboard');
+          return;
+        }
+        const data = await response.json();
+        setBot({ ...data });
+      } catch (error) {
+        console.error('Failed to fetch bot:', error);
+        router.push('/admin/dashboard');
+      } finally {
+        setIsLoading(false);
+      }
     }
-    setBot({ ...found });
+    
+    fetchBot();
   }, [id, router]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (bot) {
-      updateChatbot(bot.id, bot);
-      toast({
-        title: "Configuration Saved",
-        description: "Your bot settings and decision tree have been synchronized.",
-      });
+      try {
+        const response = await fetch(`/api/bots/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bot),
+        });
+        
+        if (response.ok) {
+          const updatedBot = await response.json();
+          setBot(updatedBot);
+          toast({
+            title: "Configuration Saved",
+            description: "Your bot settings and decision tree have been synchronized.",
+          });
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to save bot configuration.",
+          });
+        }
+      } catch (error) {
+        console.error('Error saving bot:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to save bot configuration.",
+        });
+      }
     }
   };
 
@@ -175,9 +212,24 @@ export default function BotConfigPage() {
 
   const copyLink = () => {
     const url = `${window.location.origin}/chat/${id}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(url)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(err => console.error('Clipboard error:', err));
+    } else {
+      // Fallback: create a temporary input
+      const tempInput = document.createElement('input');
+      tempInput.value = url;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   if (!bot) return null;

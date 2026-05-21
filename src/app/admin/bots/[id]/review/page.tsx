@@ -17,14 +17,7 @@ import {
   ChevronRight, 
   AlertCircle 
 } from 'lucide-react';
-import { 
-  getChatbotById, 
-  resolveUnansweredQuestion, 
-  clearUnansweredQuestions,
-  updateChatbot, 
-  type Chatbot, 
-  type UnansweredQuestion 
-} from '@/lib/mock-db';
+import type { Chatbot, UnansweredQuestion, FixedMapping } from '@/lib/mongodb-models';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Dialog, 
@@ -63,6 +56,7 @@ export default function ReviewInboxPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [bot, setBot] = useState<Chatbot | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -80,12 +74,24 @@ export default function ReviewInboxPage() {
   });
 
   useEffect(() => {
-    const found = getChatbotById(id as string);
-    if (!found) {
-      router.push('/admin/dashboard');
-      return;
+    async function fetchBot() {
+      try {
+        const response = await fetch(`/api/bots/${id}`);
+        if (!response.ok) {
+          router.push('/admin/dashboard');
+          return;
+        }
+        const data = await response.json();
+        setBot(data);
+      } catch (error) {
+        console.error('Failed to fetch bot:', error);
+        router.push('/admin/dashboard');
+      } finally {
+        setIsLoading(false);
+      }
     }
-    setBot({ ...found });
+    
+    fetchBot();
   }, [id, router]);
 
   const unansweredQuestions = bot?.unansweredQuestions || [];
@@ -96,25 +102,53 @@ export default function ReviewInboxPage() {
     return unansweredQuestions.slice(start, start + entriesPerPage);
   }, [unansweredQuestions, currentPage, entriesPerPage]);
 
-  const handleResolve = (questionId: string) => {
-    resolveUnansweredQuestion(id as string, questionId);
-    setBot(prev => prev ? {
-      ...prev,
-      unansweredQuestions: prev.unansweredQuestions.filter(q => q.id !== questionId)
-    } : null);
-    toast({
-      title: "Query Resolved",
-      description: "The unanswered question has been removed from the inbox.",
-    });
+  const handleResolve = async (questionId: string) => {
+    try {
+      const response = await fetch(`/api/bots/${id}/unanswered/${questionId}`, {
+        method: 'PATCH',
+      });
+      
+      if (response.ok) {
+        setBot(prev => prev ? {
+          ...prev,
+          unansweredQuestions: prev.unansweredQuestions.filter(q => q._id?.toString() !== questionId)
+        } : null);
+        toast({
+          title: "Query Resolved",
+          description: "The unanswered question has been removed from the inbox.",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to resolve question:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to resolve question.",
+      });
+    }
   };
 
-  const handleClearAll = () => {
-    clearUnansweredQuestions(id as string);
-    setBot(prev => prev ? { ...prev, unansweredQuestions: [] } : null);
-    toast({
-      title: "Inbox Cleared",
-      description: "All pending questions have been removed.",
-    });
+  const handleClearAll = async () => {
+    try {
+      const response = await fetch(`/api/bots/${id}/unanswered`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setBot(prev => prev ? { ...prev, unansweredQuestions: [] } : null);
+        toast({
+          title: "Inbox Cleared",
+          description: "All pending questions have been removed.",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to clear unanswered questions:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to clear inbox.",
+      });
+    }
   };
 
   const startResolutionWizard = (q: UnansweredQuestion) => {
@@ -147,7 +181,7 @@ export default function ReviewInboxPage() {
     });
   };
 
-  const finalizeResolution = () => {
+  const finalizeResolution = async () => {
     if (!bot || !selectedQuestion) return;
 
     const mapping = {
@@ -156,22 +190,39 @@ export default function ReviewInboxPage() {
       followUpOptions: newMapping.followUpOptions
     };
 
-    updateChatbot(bot.id, {
-      fixedMappings: [...bot.fixedMappings, mapping],
-      unansweredQuestions: bot.unansweredQuestions.filter(q => q.id !== selectedQuestion.id)
-    });
+    try {
+      const response = await fetch(`/api/bots/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fixedMappings: [...bot.fixedMappings, mapping],
+          unansweredQuestions: bot.unansweredQuestions.filter(q => q._id?.toString() !== selectedQuestion._id?.toString())
+        }),
+      });
 
-    setBot(prev => prev ? {
-      ...prev,
-      fixedMappings: [...prev.fixedMappings, mapping],
-      unansweredQuestions: prev.unansweredQuestions.filter(q => q.id !== selectedQuestion.id)
-    } : null);
-
-    setIsWizardOpen(false);
-    toast({
-      title: "Decision Node Created",
-      description: "The bot will now respond to this query deterministically.",
-    });
+      if (response.ok) {
+        const updatedBot = await response.json();
+        setBot(updatedBot);
+        setIsWizardOpen(false);
+        toast({
+          title: "Decision Node Created",
+          description: "The bot will now respond to this query deterministically.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to save decision node.",
+        });
+      }
+    } catch (error) {
+      console.error('Error finalizing resolution:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to save decision node.",
+      });
+    }
   };
 
   if (!bot) return null;

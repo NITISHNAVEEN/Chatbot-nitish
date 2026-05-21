@@ -8,27 +8,58 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ChevronLeft, Rocket, Bot } from 'lucide-react';
-import { addChatbot } from '@/lib/mock-db';
+import { ChevronLeft, Rocket, Bot, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function NewBotPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!name || !topic) return;
 
-    const newBot = addChatbot({
-      id: Math.random().toString(36).substring(7),
-      name,
-      topic,
-      rulesType: 'master',
-      fixedMappings: [],
-      createdAt: new Date().toISOString()
-    });
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/bots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          topic,
+          initialOptions: ["Start"],
+          rulesType: 'master',
+          fixedMappings: [],
+          knowledgeSources: [],
+        }),
+      });
 
-    router.push(`/admin/bots/${newBot.id}`);
+      if (response.ok) {
+        const newBot = await response.json();
+        toast({
+          title: "Chatbot Created",
+          description: `${name} is ready for configuration.`,
+        });
+        router.push(`/admin/bots/${newBot._id?.toString()}`);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to create chatbot.",
+        });
+      }
+    } catch (error) {
+      console.error('Error creating bot:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create chatbot.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -57,6 +88,7 @@ export default function NewBotPage() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 className="bg-background border-border/50"
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -66,15 +98,24 @@ export default function NewBotPage() {
                 value={topic}
                 onChange={e => setTopic(e.target.value)}
                 className="bg-background border-border/50"
+                disabled={isLoading}
               />
               <p className="text-[10px] text-muted-foreground mt-1">A unique link will be created for this topic.</p>
             </div>
             <Button 
               className="w-full bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20"
               onClick={handleCreate}
-              disabled={!name || !topic}
+              disabled={!name || !topic || isLoading}
             >
-              Initialize Engine <Rocket className="h-4 w-4 ml-2" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...
+                </>
+              ) : (
+                <>
+                  Initialize Engine <Rocket className="h-4 w-4 ml-2" />
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>

@@ -6,13 +6,28 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Bot, Link as LinkIcon, Settings, ExternalLink, ArrowRight, MessageSquare, Power } from 'lucide-react';
-import { getChatbots, type Chatbot } from '@/lib/mock-db';
+import type { Chatbot } from '@/lib/mongodb-models';
 
 export default function AdminDashboard() {
   const [bots, setBots] = useState<Chatbot[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setBots(getChatbots());
+    async function fetchBots() {
+      try {
+        const response = await fetch('/api/bots');
+        if (response.ok) {
+          const data = await response.json();
+          setBots(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch bots:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchBots();
   }, []);
 
   return (
@@ -47,8 +62,16 @@ export default function AdminDashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {bots.length === 0 && !isLoading && (
+                <Card className="col-span-full">
+                  <CardContent className="pt-6">
+                    <p className="text-center text-muted-foreground">No bots created yet. Create one to get started!</p>
+                  </CardContent>
+                </Card>
+              )}
+              
               {bots.map((bot) => (
-                <Card key={bot.id} className="group hover:border-primary/50 transition-all bg-card/50 border-border/50">
+                <Card key={bot._id?.toString()} className="group hover:border-primary/50 transition-all bg-card/50 border-border/50">
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <div className="flex flex-col gap-2">
@@ -62,12 +85,12 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex gap-1">
                         <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                          <Link href={`/admin/bots/${bot.id}`}>
+                          <Link href={`/admin/bots/${bot._id?.toString()}`}>
                             <Settings className="h-4 w-4" />
                           </Link>
                         </Button>
                         <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-accent">
-                          <Link href={`/chat/${bot.id}`} target="_blank">
+                          <Link href={`/chat/${bot._id?.toString()}`} target="_blank">
                             <ExternalLink className="h-4 w-4" />
                           </Link>
                         </Button>
@@ -85,7 +108,7 @@ export default function AdminDashboard() {
                         <span>{bot.fixedMappings.length} mappings</span>
                       </div>
                       <Button asChild variant="ghost" size="sm" className="h-8 text-xs font-medium hover:bg-primary/10 hover:text-primary">
-                        <Link href={`/admin/bots/${bot.id}`}>
+                        <Link href={`/admin/bots/${bot._id?.toString()}`}>
                           Edit Config <ArrowRight className="h-3 w-3 ml-1" />
                         </Link>
                       </Button>

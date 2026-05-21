@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Bot, Loader2, ShieldCheck, Info, PowerOff, RefreshCcw } from 'lucide-react';
 import { ragBotResponse } from '@/ai/flows/rag-bot-response-flow';
-import { getChatbotById, recordUnansweredQuestion, type Chatbot } from '@/lib/mock-db';
+import type { Chatbot } from '@/lib/mongodb-models';
 
 export default function PublicChatPage() {
   const { id } = useParams();
@@ -18,17 +18,26 @@ export default function PublicChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const found = getChatbotById(id as string);
-    if (found) {
-      setBot(found);
-      if (found.status === 'online') {
-        setMessages([{ 
-          role: 'bot', 
-          text: found.welcomeMessage || `Hello! I am ${found.name}. I am a rules-based assistant for ${found.topic}.`,
-          options: found.initialOptions
-        }]);
+    async function fetchBot() {
+      try {
+        const response = await fetch(`/api/bots/${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setBot(data);
+          if (data.status === 'online') {
+            setMessages([{ 
+              role: 'bot', 
+              text: data.welcomeMessage || `Hello! I am ${data.name}. I am a rules-based assistant for ${data.topic}.`,
+              options: data.initialOptions
+            }]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch bot:', error);
       }
     }
+
+    fetchBot();
   }, [id]);
 
   useEffect(() => {
@@ -48,7 +57,7 @@ export default function PublicChatPage() {
     setTimeout(async () => {
       try {
         const result = await ragBotResponse({
-          botId: bot.id,
+          botId: bot._id?.toString() || '',
           userMessage: userMessage,
           knowledgeSources: bot.knowledgeSources.map(s => ({ name: s.name, content: s.content })),
           fixedResponses: bot.fixedMappings.map(m => ({
@@ -59,7 +68,16 @@ export default function PublicChatPage() {
         });
 
         if (result.responseSource === 'fallback') {
-          recordUnansweredQuestion(bot.id, userMessage);
+          // Record unanswered question via API
+          try {
+            await fetch(`/api/bots/${bot._id?.toString()}/unanswered`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: userMessage }),
+            });
+          } catch (error) {
+            console.error('Failed to record unanswered question:', error);
+          }
         }
 
         setMessages(prev => [...prev, { 

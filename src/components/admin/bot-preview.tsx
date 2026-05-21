@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Bot, Loader2, RefreshCcw } from 'lucide-react';
 import { ragBotResponse } from '@/ai/flows/rag-bot-response-flow';
-import type { Chatbot } from '@/lib/mock-db';
+import type { Chatbot } from '@/lib/mongodb-models';
 import { Badge } from '@/components/ui/badge';
 
 export function BotPreview({ bot }: { bot: Chatbot }) {
@@ -27,7 +27,7 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
 
   useEffect(() => {
     resetChat();
-  }, [bot.id, bot.welcomeMessage, bot.initialOptions]);
+  }, [bot._id, bot.welcomeMessage, bot.initialOptions]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -45,7 +45,7 @@ export function BotPreview({ bot }: { bot: Chatbot }) {
 
     try {
       const result = await ragBotResponse({
-        botId: bot.id,
+        botId: bot._id?.toString() || '',
         userMessage: userMessage,
         knowledgeSources: bot.knowledgeSources.map(s => ({ name: s.name, content: s.content })),
         fixedResponses: bot.fixedMappings.map(m => ({
